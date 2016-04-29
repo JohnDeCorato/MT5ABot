@@ -38,7 +38,7 @@ class Meta:
 
         roles = [role.name.replace('@', '@\u200b') for role in member.roles]
 
-        entries = {
+        entries = [
             ('Name', member.name),
             ('Tag', member.discriminator),
             ('ID', member.id),
@@ -46,7 +46,7 @@ class Meta:
             ('Created', member.created_at),
             ('Roles', ', '.join(roles)),
             ('Avatar', member.avatar_url),
-        }
+        ]
 
         await formats.entry_to_code(self.bot, entries)
 

@@ -1,6 +1,5 @@
-import discord
 from discord.ext import commands
-from cogs.utils import checks
+from cogs.utils import checks, db
 import datetime
 import asyncio
 import json
@@ -10,6 +9,8 @@ import zerorpc
 
 initial_extensions = [
     'cogs.meta',
+    'cogs.dota2',
+    'cogs.steam',
 ]
 
 description = """
@@ -56,6 +57,9 @@ async def on_message(message):
     elif message.content.startswith('!zerorpctest'):
         await bot.send_message(message.channel, zrpc.hello("RPC"))
 
+    elif message.content.startswith('!emojitest'):
+        await bot.send_message(message.channel, message.author.name)
+
     elif message.content.startswith('!mmrtest'):
         msg = message.content.split(' ')
         if len(msg) == 1:
@@ -84,6 +88,7 @@ async def on_message(message):
     else:
         await bot.process_commands(message)
 
+
 def load_credentials():
     with open('credentials.json') as f:
         return json.load(f)
@@ -91,4 +96,6 @@ def load_credentials():
 
 credentials = load_credentials()
 bot.client_id = credentials['client_id']
+bot.steam_api_key = credentials['steam_api_key']
+bot.steam_info = db.Database('steam_info.json')
 bot.run(credentials['token'])
