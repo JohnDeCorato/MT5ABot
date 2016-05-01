@@ -1,6 +1,14 @@
 import json
 import asyncio
+import os
 
+
+def load_json_file(file_name):
+    inp_file = os.path.abspath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "../../..",
+        "ref",
+        file_name))
+    return inp_file
 
 class Database:
     """The database object. Internally based on ''json''."""
@@ -14,6 +22,8 @@ class Database:
             self.loop.create_task(self.load())
         else:
             self.load_from_file()
+
+        self.lock = asyncio.Lock()
 
     def load_from_file(self):
         try:
@@ -33,18 +43,19 @@ class Database:
         await self.loop.run_in_executor(None, self._dump)
 
     def get(self, key, *args):
-        """Retrieves a config entry."""
         return self._db.get(key, *args)
 
     async def put(self, key, value, *args):
         """Edits a config entry."""
-        self._db[key] = value
-        await self.save()
+        with await self.lock:
+            self._db[key] = value
+            await self.save()
 
     async def remove(self, key):
         """Removes a config entry."""
-        del self._db[key]
-        await self.save()
+        with await self.lock:
+            del self._db[key]
+            await self.save()
 
     def __contains__(self, item):
         return self._db.__contains__(item)

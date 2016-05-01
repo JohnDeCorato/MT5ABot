@@ -1,11 +1,12 @@
-from discord.ext import commands
-from cogs.utils import checks, db
-import datetime
 import asyncio
+import datetime
 import json
 from collections import Counter
 
 import zerorpc
+from discord.ext import commands
+
+from Discord.cogs.utils import db
 
 initial_extensions = [
     'cogs.meta',

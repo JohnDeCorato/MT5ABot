@@ -1,68 +1,9 @@
-from discord.ext import commands
+import re
+
 import discord.utils
-from .utils import db, formats, steamapi, zrpc
-import json, re
+from discord.ext import commands
 
-
-class Default:
-    def __str__(self):
-        return 'Me'
-
-
-MyInfo = Default()
-
-
-class MemberParser:
-    def __index__(self, argument):
-        self.argument = argument.strip()
-        self.regex = re.compile(r'<@([0-9]+)>')
-
-    def member_entry(self, tup):
-        index = tup[0]
-        member = tup[1]
-        return '{0}: {1.name}#{1.discriminator} from {1.server.name}'.format(index, member)
-
-    def has_potential_discriminator(self):
-        return len(self.argument) > 5 and self.argument[-5] == '#'
-
-    def get_server_members(self, server):
-        if self.has_potential_discriminator():
-            discrim = self.argument[-4:]
-            direct = discord.utils.get(server.members, name=self.argument[:-5], discriminator=discrim)
-            if direct is not None:
-                return {direct}
-
-        return {m for m in server.members if self.argument == m.name}
-
-    async def get(self, ctx):
-        server = ctx.message.server
-        bot = ctx.bot
-
-        m = self.regex.match(self.argument)
-        if m:
-            user_id = m.group(1)
-            if server:
-                return server.get_member(user_id)
-
-            gen = filter(None, map(lambda s: s.get_member(user_id), bot.servers))
-            return next(gen, None)
-
-        if server:
-            results = self.get_server_members(server)
-        else:
-            results = set(filter(None,
-                                 map(lambda s: s.get_member_named(self.argument),
-                                     filter(lambda s: ctx.message.author in s.members, bot.servers))))
-
-        results = list(results)
-        if len(results) == 0:
-            return None
-        if len(results) == 1:
-            return results[0]
-
-        msg = ctx.message
-        member = await formats.too_many_matches(bot, msg, results, self.member_entry)
-        return member
+from .utils import formats, steamapi, zrpc
 
 
 class Steam:
@@ -114,17 +55,25 @@ class Steam:
             await self.bot.whisper('You have linked something to MT5ABot. Goodbye.')
             return
 
+        if not steamid:
+            await self.bot.whisper('Unable to determine Steam ID from {0}. Please try a different identifier.'
+                                   .format(steamthing))
+
         if zrpc.add_pending_discord_link(str(steamid), str(author.id)):
             await self.bot.whisper(
                 "Your Steam account was determined to be http://steamcommunity.com/profiles/{0}".format(steamid))
             await self.bot.whisper(
                 "Please add MT5ABot on Steam by searching for 'MT5ABot' or using the following link: " +
-                "http://steamcommunity.com/id/mt5abot/")
+                "http://steamcommunity.com/id/mt5abot/ ."
+                "If you have already added MT5ABot on steam, please "
+                "send 'link discord your_discord_id' to MT5ABot "
+                "over Steam chat. If you do not know your Discord ID, please use the "
+                "{0.prefix}info command.".format(ctx))
         else:
             await self.bot.whisper("This steam account is already pending.")
             await self.bot.whisper(
                 "Please add MT5ABot on Steam by searching for 'MT5ABot' or "
-                "using http://steamcommunity.com/id/mt5abot/."
+                "using http://steamcommunity.com/id/mt5abot/ ."
                 "If you have already added MT5ABot on steam, please "
                 "send 'link discord your_discord_id' to MT5ABot "
                 "over Steam chat. If you do not know your Discord ID, please use the "
@@ -164,7 +113,6 @@ class Steam:
                 "code you gave is the same one given by MT5ABot "
                 "on Steam. If you have not received a code from MT5ABot, "
                 "please send 'link discord your_discord_id' to MT5ABot over Steam chat.")
-
 
 
 def setup(bot):

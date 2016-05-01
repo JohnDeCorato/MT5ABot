@@ -1,10 +1,11 @@
-from discord.ext import commands
-from .utils import checks, formats
-import discord
-
-from collections import OrderedDict, deque, Counter
 import copy
 import datetime
+from collections import deque, Counter
+
+from discord.ext import commands
+
+import discord
+from .utils import checks, formats
 
 
 class Meta:

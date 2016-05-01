@@ -1,6 +1,9 @@
-import requests, json, traceback
 import re
+
+import requests
+
 from . import urls
+
 
 class ID(object):
     STEAM_TO_DOTA_CONSTANT = 76561197960265728
@@ -34,7 +37,11 @@ class ID(object):
     def dota_to_steam(cls, ID_):
         return int(ID_) + cls.STEAM_TO_DOTA_CONSTANT
 
+
 class SteamAPI:
+    # https://wiki.teamfortress.com/wiki/WebAPI
+    # https://developer.valvesoftware.com/wiki/Steam_Web_API
+    # http://dev.dota2.com/showthread.php?t=58317
     def __init__(self, api_key):
         self.steam_api_key = api_key
 
@@ -115,6 +122,7 @@ class SteamAPI:
 
         return self.get_api_call(urls.RESOLVE_VANITY_URL, **args)
 
+    # Gets a Steam ID from something. Returns None if it couldn't figure it out.
     def determine_steam_id(self, steamthing):
         steamthing = str(steamthing)
 

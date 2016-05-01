@@ -31,4 +31,4 @@ async def too_many_matches(bot, msg, matches, entry):
         except IndexError:
             await bot.say('Please give me a valid number. {} tries remaining...'.format(2 - i))
 
-    return None
+    raise ValueError('Too many tries. Goodbye.')
