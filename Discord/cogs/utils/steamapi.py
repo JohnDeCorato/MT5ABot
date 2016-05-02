@@ -57,7 +57,7 @@ class SteamAPI:
 
             api_call += '&%s=%s' % (key, args[key])
 
-        request_data = requests.get(api_call, timeout=4)
+        request_data = requests.get(api_call, timeout=10)
 
         if request_data.status_code not in [200, 503]:
             print('[SteamAPI] API call failure:', request_data, request_data.reason, api_path.split('/')[-3:-2])

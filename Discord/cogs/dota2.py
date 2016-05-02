@@ -72,7 +72,13 @@ class Dota2:
         await self.bot.say(msg)
 
     def get_latest_match(self, steam_id):
-        result = self.steam_api.get_match_history(account_id=steam_id, matches_requested=1)['result']
+        try:
+            req = self.steam_api.get_match_history(account_id=steam_id, matches_requested=1)
+            print(req)
+            result = req['result']
+        except:
+            print("uh")
+            return None
 
         if result['status'] == 15:
             return {}
@@ -87,6 +93,8 @@ class Dota2:
 
         for steam_id in steam_ids:
             match = self.get_latest_match(steam_id)
+            if match is None:
+                return None
             if not match == {} and (latest_match == {} or latest_match['match_seq_num'] < match['match_seq_num']):
                 latest_match = match
 
@@ -151,13 +159,13 @@ class Dota2:
                 "GPM -- {6}\n\n".format(name, hero_name, player['level'], player['kills'],
                                     player['deaths'], player['assists'], player['gold_per_min']))
 
-    async def parse_match(self, match):
+    def parse_match(self, match):
         result = self.steam_api.get_match_details(match['match_id'])
         try:
             match_info = result['result']
         except KeyError:
             print(result)
-            await self.bot.say("The Dota 2 Web API is down. Please try again later.")
+            return None
 
         lobby_name = self.get_lobby_name(match_info['lobby_type'])
         mode_name = self.get_mode_name(match_info['game_mode'])
@@ -191,7 +199,7 @@ class Dota2:
                     print_dir = True
                 match_string += player_blurb
 
-        await self.bot.say(match_string)
+        return match_string
 
     @commands.command(pass_context=True)
     async def last_match(self, ctx, *, member: discord.Member=None):
@@ -211,7 +219,16 @@ class Dota2:
             return
 
         match = self.get_latest_match_from_list(steam_ids)
-        await self.parse_match(match)
+        print(match)
+        if match is None:
+            await self.bot.say("The Steam Web API is down. Please try again later.")
+        else:
+            match_string = self.parse_match(match)
+            print(match_string)
+            if match_string is None:
+                await self.bot.say("The Steam Web API is down. Please try again later.")
+            else:
+                await self.bot.say(match_string)
 
 
 def setup(bot):

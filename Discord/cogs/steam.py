@@ -25,20 +25,26 @@ class Steam:
             return
 
         if len(ctx.message.content.split(' ')) > 1:
-            await self.bot.say("Invalid subcommand. Use '{0.prefix}help link_steam' to see a list of subcommands.")
+            if ctx.message.content.split(' ')[1].isdigit():
+                await self.bot.say("You appear to be using the old method of linking your Steam account. "
+                                   "The linking process is different, so please only use {0.prefix}link_steam "
+                                   "to start linking your Steam account.".format(ctx))
+            else:
+                await self.bot.say("Invalid subcommand. Use '{0.prefix}help link_steam' to see a list of subcommands."
+                                   .format(ctx))
             return
 
         author = ctx.message.author
         sentinel = ctx.prefix + 'cancel'
 
-        fmt = 'Hello {0.mention}. Let\'s walk you through making a profile!\n' \
+        fmt = 'Hello {0.mention}. Let\'s walk you through linking your Steam account.\n' \
               '**You can cancel this process by typing {1.prefix}cancel.**\n' \
               'Now, please provide an identifier for your steam account. This can be a Steam profile link, ' \
               'a Dotabuff profile link (or any other website using Steam), or any direct Steam ID in any format.'
 
         await self.bot.whisper(fmt.format(author, ctx))
         check = lambda m: m.channel.is_private and m.content.count('\n') == 0
-        msg = await self.bot.wait_for_message(author=author, check=check)
+        msg = await self.bot.wait_for_message(author=author, timeout=60.0, check=check)
 
         if msg is None:
             await self.bot.whisper('You took too long {0.mention}. Goodbye.'.format(author))
