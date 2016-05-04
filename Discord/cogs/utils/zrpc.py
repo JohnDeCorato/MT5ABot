@@ -5,8 +5,19 @@ import zerorpc
 from . import db
 
 
-zrpc = zerorpc.Client()
-zrpc.connect("tcp://127.0.0.1:4242")
+class ZRPC(object):
+    def __init__(self):
+        self.zrpc = zerorpc.Client(timeout=10)
+
+    def __enter__(self):
+        self.zrpc.connect('tcp://127.0.0.1:4242')
+        return self.zrpc if self.zrpc else None
+
+    def __exit__(self, etype, evalue, tb):
+        if etype is not None:
+            print('Node error:', evalue, '(%s)' % etype)
+        self.zrpc.close()
+
 
 def get_batched_data(zfunction, ifcomp, convertjson, unpackargs, args):
     def convjson(data):
@@ -34,31 +45,38 @@ def get_batched_data(zfunction, ifcomp, convertjson, unpackargs, args):
 
 
 def status():
-    return zrpc.status()
+    with ZRPC() as zrpc:
+        return zrpc.status()
 
 
 def launch_dota():
-    return zrpc.launchdota()
+    with ZRPC() as zrpc:
+        return zrpc.launchdota()
 
 
 def close_dota():
-    return zrpc.closedota()
+    with ZRPC() as zrpc:
+        return zrpc.closedota()
 
 
 def gc_status():
-    return zrpc.gcstatus()
+    with ZRPC() as zrpc:
+        return zrpc.gc_status()
 
 
 def get_enum(name=None):
-    return zrpc.get_enum(name)
+    with ZRPC() as zrpc:
+        return zrpc.get_enum(name)
 
 
 def get_mm_stats():
-    return zrpc.get_mm_stats()
+    with ZRPC() as zrpc:
+        return zrpc.get_mm_stats()
 
 
 def get_match_details(match_id):
-    return zrpc.get_match_details(match_id)
+    with ZRPC() as zrpc:
+        return zrpc.get_match_details(match_id)
 
 #########################
 # MMR functions
@@ -66,7 +84,8 @@ def get_match_details(match_id):
 
 
 def get_mmr_for_dotaid(dotaid):
-    return zrpc.get_mmr_for_dotaid(dotaid)
+    with ZRPC() as zrpc:
+        return zrpc.get_mmr_for_dotaid(dotaid)
 
 #########################
 # Verification functions
@@ -74,19 +93,23 @@ def get_mmr_for_dotaid(dotaid):
 
 
 def verify_code(discordid, code):
-    return zrpc.verify_check(discordid, code)
+    with ZRPC() as zrpc:
+        return zrpc.verify_check(discordid, code)
 
 
 def delete_key(discordid):
-    return zrpc.delete_key(discordid)
+    with ZRPC() as zrpc:
+        return zrpc.delete_key(discordid)
 
 
 def add_pending_discord_link(steamid, discordid):
-    return zrpc.add_pending_discord_link(steamid, discordid)
+    with ZRPC() as zrpc:
+        return zrpc.add_pending_discord_link(steamid, discordid)
 
 
 def remove_pending_discord_link(steamid, discordid):
-    return zrpc.del_pending_discord_link(steamid)
+    with ZRPC() as zrpc:
+        return zrpc.del_pending_discord_link(steamid)
 
 #########################
 # Lobby functions

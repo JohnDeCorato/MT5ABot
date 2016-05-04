@@ -42,8 +42,9 @@ class SteamAPI:
     # https://wiki.teamfortress.com/wiki/WebAPI
     # https://developer.valvesoftware.com/wiki/Steam_Web_API
     # http://dev.dota2.com/showthread.php?t=58317
-    def __init__(self, api_key):
+    def __init__(self, api_key, attempts=5):
         self.steam_api_key = api_key
+        self.api_attempts = attempts
 
     def get_api_call(self, api_path, **args):
         api_call = urls.BASE_URL + api_path + '?key=%s' % self.steam_api_key
@@ -57,12 +58,20 @@ class SteamAPI:
 
             api_call += '&%s=%s' % (key, args[key])
 
-        request_data = requests.get(api_call, timeout=10)
+        json = {}
+        attempts = 0
+        request_data = None
 
-        if request_data.status_code not in [200, 503]:
-            print('[SteamAPI] API call failure:', request_data, request_data.reason, api_path.split('/')[-3:-2])
+        while json == {} and attempts < self.api_attempts:
+            attempts += 1
+            request_data = requests.get(api_call, timeout=4)
 
-        return request_data.json() if not raw_request else request_data
+            if request_data.status_code not in [200, 503]:
+                print('[SteamAPI] API call failure:', request_data, request_data.reason, api_path.split('/')[-3:-2])
+
+            json = request_data.json()
+
+        return json if not raw_request else request_data
 
     def get_league_listing(self, raw_request=False):
         args = {k: v for k, v in locals().items() if v is not None and k is not 'self'}
@@ -166,5 +175,5 @@ class SteamAPI:
                 else:
                     maybesteamid = None
 
-        print('[Dota] Determined that steamid for %s is %s' % (steamthing, maybesteamid))
+        print('[SteamAPI] Determined that steamid for %s is %s' % (steamthing, maybesteamid))
         return int(maybesteamid)

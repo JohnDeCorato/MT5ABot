@@ -6,6 +6,7 @@ from collections import Counter
 import zerorpc
 from discord.ext import commands
 
+from Discord.cogs import dota2
 from Discord.cogs.utils import db
 
 initial_extensions = [
@@ -54,38 +55,6 @@ async def on_message(message):
     elif message.content.startswith('!sleep'):
         await asyncio.sleep(5)
         await bot.send_message(message.channel, 'Done sleeping')
-
-    elif message.content.startswith('!zerorpctest'):
-        await bot.send_message(message.channel, zrpc.hello("RPC"))
-
-    elif message.content.startswith('!emojitest'):
-        await bot.send_message(message.channel, message.author.name)
-
-    elif message.content.startswith('!mmrtest'):
-        msg = message.content.split(' ')
-        if len(msg) == 1:
-            await bot.send_message(message.channel, "Please provide a Steam ID to check")
-            return
-
-        dotaid = msg[1]
-        if dotaid.isdigit():
-            smmr, pmmr = zrpc.getmmrfordotaid(dotaid)
-            if smmr is not None:
-                if smmr == 0:
-                    meme = ' EleGiggle'
-                elif smmr >= 6000:
-                    meme = ' PogChamp'
-                else:
-                    meme = ''
-                output = '%s: %s!%s' % (dotaid, smmr, meme)
-            elif pmmr is not None:
-                output = '%s: %s... except it\'s party mmr...' % (dotaid, pmmr)
-            else:
-                output = '%s: I dunno! Stop hiding your mmr!' % dotaid
-
-            await bot.send_message(message.channel, output)
-        else:
-            await bot.send_message(message.channel, "Please use an integer")
     else:
         await bot.process_commands(message)
 
@@ -99,4 +68,6 @@ credentials = load_credentials()
 bot.client_id = credentials['client_id']
 bot.steam_api_key = credentials['steam_api_key']
 bot.steam_info = db.Database('steam_info.json')
+bot.dota_ticker_settings = db.Database('dota_ticker_settings.json')
+
 bot.run(credentials['token'])

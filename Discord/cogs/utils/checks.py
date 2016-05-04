@@ -55,6 +55,11 @@ def admin_or_permissions(**perms):
     return commands.check(predicate)
 
 
+def server_owner_or_bot_owner():
+    return commands.check(lambda ctx: is_owner_check(ctx.message) or
+                          ctx.message.author == ctx.message.server.owner)
+
+
 def is_in_servers(*server_ids):
     def predicate(ctx):
         server = ctx.message.server

@@ -6,7 +6,7 @@ var steam = require("steam"),
 
 	zerorpc = require("zerorpc"),
 
-    credentials = require("./credentials"),
+    credentials = require("../credentials.json"),
     chatkeymap = {}
     pendingEnables = {},
 
@@ -126,11 +126,12 @@ var onSteamLogOn = function onSteamLogOn(logonResp) {
 	        if (steamID.toString() in pendingEnables) {
 	            steamFriends.addFriend(steamID);
 
-                steamFriends.sendMessage(steamID, "Discord user " + pendingEnables[steamID] + " has requested to link this Steam account to a Discord user. "
-                    + "If this is not your Discord account, please unfriend the bot and try the !link_steam command again.");
+                steamFriends.sendMessage(steamID, "Someone has requested to link this Steam account to a Discord user. "
+                    + "If this someone is not you, please unfriend the bot and message MashThat5A on Discord.");
 
-                steamFriends.sendMessage(steamID, "To generate a verification code, please type this: link discord your_discord_id."
-                    + "If you do not know your Discord ID, you can use the !info command in Discord to see it.");
+                steamFriends.sendMessage(steamID, "To generate a verification code, please send me 'link discord your_discord_id'."
+                    + "If you do not know your Discord ID, MT5ABot should have PM'ed the command to you, or you can use the "
+                    + "!info command on a Discord server to see it.");
 	        }
 	    }
 	};
@@ -294,11 +295,13 @@ var zrpcserver = new zerorpc.Server({
 	verify_check: function(discordid, vkey, reply) {
 	    reply = arguments[arguments.length - 1];
 
+	    util.log("Verifying for %s.", discordid)
+
 	    discordid = typeof discordid !== 'function' ? discordid : null;
         vkey = typeof vkey !== 'function' ? vkey : null;
 
         var generatedkey = chatkeymap[discordid][0];
-        if (generatedkey === undefined) {
+        if (generatedkey == undefined) {
             reply("Unregistered", false);
             return;
         }
@@ -339,8 +342,17 @@ var zrpcserver = new zerorpc.Server({
     }
 });
 
+
+zrpcserver.on("error", function(err) {
+    console.error("RPC server error: ", err);
+});
+
 zrpcserver.bind("tcp://0.0.0.0:4242");
 util.log('Starting zrpc server');
+
+process.on('error', function(err) {
+    console.error("Process error: ", err);
+});
 
 var DOTA_RP_STATUSES = {
     "closing"                            : "Closing",

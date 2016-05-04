@@ -69,21 +69,18 @@ class Steam:
             await self.bot.whisper(
                 "Your Steam account was determined to be http://steamcommunity.com/profiles/{0}".format(steamid))
             await self.bot.whisper(
-                "Please add MT5ABot on Steam by searching for 'MT5ABot' or using the following link: " +
-                "http://steamcommunity.com/id/mt5abot/ ."
-                "If you have already added MT5ABot on steam, please "
-                "send 'link discord your_discord_id' to MT5ABot "
-                "over Steam chat. If you do not know your Discord ID, please use the "
-                "{0.prefix}info command.".format(ctx))
+                "Please add MT5ABot on Steam by searching for 'MT5ABot' or "
+                "using http://steamcommunity.com/id/mt5abot/ . "
+                "Then send 'link discord {0.id}' to MT5ABot "
+                "over Steam chat.".format(author))
         else:
             await self.bot.whisper("This steam account is already pending.")
             await self.bot.whisper(
                 "Please add MT5ABot on Steam by searching for 'MT5ABot' or "
-                "using http://steamcommunity.com/id/mt5abot/ ."
+                "using http://steamcommunity.com/id/mt5abot/ . "
                 "If you have already added MT5ABot on steam, please "
-                "send 'link discord your_discord_id' to MT5ABot "
-                "over Steam chat. If you do not know your Discord ID, please use the "
-                "{0.prefix}info command.".format(ctx))
+                "send 'link discord {0.id}' to MT5ABot "
+                "over Steam chat.".format(author))
 
     @link_steam.command(name='verify', pass_context=True, hidden=True)
     async def verify(self, ctx):
