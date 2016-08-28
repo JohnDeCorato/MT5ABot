@@ -1,8 +1,7 @@
-import re
-import time
 import json
+import time
+
 import zerorpc
-from . import db
 
 
 class ZRPC(object):
@@ -38,6 +37,16 @@ def get_batched_data(zfunction, ifcomp, convertjson, unpackargs, args):
                 raise e
 
     raise Exception('Took too long.')
+
+################################
+# General functions
+################################
+
+
+def hello():
+    with ZRPC() as zrpc:
+        return zrpc.hello()
+
 
 ################################
 # Dota 2 general functions

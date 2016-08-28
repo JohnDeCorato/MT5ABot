@@ -42,7 +42,7 @@ class SteamAPI:
     # https://wiki.teamfortress.com/wiki/WebAPI
     # https://developer.valvesoftware.com/wiki/Steam_Web_API
     # http://dev.dota2.com/showthread.php?t=58317
-    def __init__(self, api_key, attempts=5):
+    def __init__(self, api_key, attempts=1):
         self.steam_api_key = api_key
         self.api_attempts = attempts
 

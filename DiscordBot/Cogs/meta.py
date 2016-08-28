@@ -1,11 +1,11 @@
 import copy
 import datetime
-from collections import deque, Counter
-
-from discord.ext import commands
+from collections import Counter
 
 import discord
-from .utils import checks, formats
+from discord.ext import commands
+
+from .Utils import checks, formats
 
 
 class Meta:
@@ -130,7 +130,7 @@ class Meta:
         await self.say_permissions(member, channel)
 
     @commands.command()
-    async def join(self):
+    async def join_server(self):
         """Joins a server."""
         msg = 'Please use this URL to add MT5ABot to your discord server.\n\n'
         perms = discord.Permissions.none()
@@ -147,7 +147,7 @@ class Meta:
 
     @commands.command(pass_context=True, no_pm=True)
     @checks.permissions(manage_server=True)
-    async def leave(self, ctx):
+    async def leave_server(self, ctx):
         """Leaves the server.
 
         To use this command you must have Manage Server permissions.
@@ -175,38 +175,6 @@ class Meta:
     async def uptime(self):
         """Tells you how long the bot has been up for."""
         await self.bot.say('Uptime: **{}**'.format(self.get_bot_uptime()))
-
-    def format_message(self, message):
-        return 'On {0.timestamp}, {0.author} said {0.content}'.format(message)
-
-    @commands.command(pass_context=True, no_pm=True)
-    async def mentions(self, ctx, channel: discord.Channel=None, context: int=3):
-        """Tells you when you were mentioned in a channel.
-        If a channel is not given, then it tells you when you were mentioned in a
-        the current channel. The context is an integer that tells you how many messages
-        before should be shown. The context cannot be greater than 5 or lower than 0.
-        """
-        if channel is None:
-            channel = ctx.message.channel
-
-        context = min(5, max(0, context))
-
-        author = ctx.message.author
-        previous = deque(maxlen=context)
-        is_mentioned = False
-        async for message in self.bot.logs_from(channel, limit=1000):
-            previous.appendleft(message)
-            if author in message.mentions or message.mention_everyone:
-                # we're mentioned so..
-                is_mentioned = True
-                try:
-                    await self.bot.whisper('\n'.join(map(self.format_message, previous)))
-                except discord.HTTPException:
-                    await self.bot.whisper('An error happened while fetching mentions.')
-
-        if not is_mentioned:
-            await self.bot.say('You were not mentioned in the past 1000 messages.')
-
 
 def setup(bot):
     bot.add_cog(Meta(bot))

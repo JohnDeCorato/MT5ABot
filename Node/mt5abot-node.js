@@ -4,16 +4,28 @@ var steam = require("steam"),
 	fs = require("fs"),
 	crypto = require("crypto"),
 
+    kvparse = require('binarykvparser'),
 	zerorpc = require("zerorpc"),
-
-    credentials = require("../credentials.json"),
-    chatkeymap = {}
-    pendingEnables = {},
 
     steamClient = new steam.SteamClient(),
     steamUser = new steam.SteamUser(steamClient),
     steamFriends = new steam.SteamFriends(steamClient),
-    dotaClient = new dota2.Dota2Client(steamClient, true, true);
+    steamRichPresence = new steam.SteamRichPresence(steamClient, 570),
+    dotaClient = new dota2.Dota2Client(steamClient, true, true),
+
+    adminIDs = ['76561198025658226'],
+    chatkeymap = {},
+    pendingEnables = {},
+
+    user_rich_presence_data = {}
+    dota_user_stats = {}
+    dota_user_playing_as = {},
+
+    zrpc_friend_data_request_locked = false,
+    zrpc_rich_presence_request_locked = false;
+
+// Load credentials file
+global.credentials = require("../Config/config.json");
 
 var onSteamLogOn = function onSteamLogOn(logonResp) {
         if (logonResp.eresult == steam.EResult.OK) {
@@ -114,7 +126,7 @@ var onSteamLogOn = function onSteamLogOn(logonResp) {
             chatkeymap[lmessage.split(' ')[2]] = [randomkey, source];
 
             steamFriends.sendMessage(source, "Verification key generated for Discord member \"" + lmessage.split(' ')[2] + "\".  "
-                + "Please use the following command in your chat to complete the verification: !link_steam verify " + randomkey);
+                + "Please use the following command in Discord to complete the verification: !link_steam verify " + randomkey);
         }
 	},
 
@@ -134,11 +146,15 @@ var onSteamLogOn = function onSteamLogOn(logonResp) {
                     + "!info command on a Discord server to see it.");
 	        }
 	    }
+	},
+
+	onRichPresence = function onRichPresence(steamid, userstate, herolevel, heroname) {
+        util.log("This actually does something.")
 	};
 
 var accountDetails = {
-	"account_name": credentials.steam_user,
-    "password": credentials.steam_pass,
+	"account_name": global.credentials.steam_user,
+    "password": global.credentials.steam_pass,
 };
 
 steamClient.connect();
@@ -147,14 +163,16 @@ steamClient.on('logOnResponse', onSteamLogOn);
 steamClient.on('loggedOff', onSteamLogOff);
 steamClient.on('error', onSteamError);
 steamClient.on('servers', onSteamServers);
+steamClient.on('richPresence', onRichPresence)
 steamFriends.on('message', onMessage);
 steamFriends.on('friend', onFriend);
 
 var zrpcserver = new zerorpc.Server({
     /*
-        Server testing stuff
+        General functions
     */
 	hello: function(name, reply) {
+	    reply = arguments[arguments.length - 1];
 		reply(null, "Hello, " + name);
 	},
 
@@ -331,6 +349,82 @@ var zrpcserver = new zerorpc.Server({
         reply = arguments[arguments.length - 1];
         delete pendingEnables[discordid];
         reply();
+	},
+
+	/*
+	    Lobby functions
+	*/
+
+	create_lobby: function(game_name, password, server_region, game_mode, reply) {
+	    reply = arguments[arguments.length - 1];
+
+	    game_name = typeof game_name !== 'function' ? game_name : undefined;
+	    password = typeof password !== 'function' ? password : undefined;
+	    server_region = typeof server_region !== 'function' ? server_region : undefined;
+	    game_mode = typeof game_mode !== 'function' ? game_mode : 1;
+
+	    if (!dotaClient._gcReady) {
+	        reply(null, false)
+	    };
+
+	    util.log("ZRPC: Creating lobby")
+	    Dota2.leavePracticeLobby()
+	},
+
+	/*
+	    Node-steam functions
+	*/
+
+	get_rich_presence: function(steamids, reply) {
+	    reply = arguments[arguments.length - 1];
+	    steamids = Array.isArray(steamids) ? steamids : [steamids]
+
+	    if (zrpc_rich_presence_request_locked) {
+	        reply("busy")
+	        return
+	    }
+
+	    if (!steamClient.loggedOn) {
+	        reply("Steam not ready")
+	        return
+	    }
+
+	    var expected_response_count = steamids.length,
+	        sent_data = false;
+	    zrpc_rich_presence_request_locked = True;
+
+	    var rp_listener = function(info) {
+	        if (info.rich_presence.length == expected_response_count && steamids[0] == info.rich_presence[0].steamid_user) {
+	            var data = {};
+	            for (var i = info.rich_presence.length - 1; i >= 0; i--) {
+	                try {
+                        kvdata = kvparse.parse(info.rich_presence[i].rich_presence_kv);
+	                } catch (e) {
+	                    console.log('ZRPC Error: Bad rich presence data for ', info.rich_presence[i].steamid_user);
+	                    data[info.rich_presence[i].steamid_user] = null;
+	                    continue;
+	                }
+
+	                data[info.rich_presence[i].steamid_user] = kvdata.RP;
+	            }
+	            steamRichPresence.removeListener('info', rp_listener);
+	            zrpc_rich_presence_request_locked = false;
+	            sent_data = true;
+	            reply(null, JSON.stringify(data))
+	        }
+	    };
+
+	    setTimeout(function() {
+	        if(!sent_data) {
+	            reply("Did not receive the desired response.")
+
+	            steamRichPresence.removeListener('info', rp_listener);
+	            zrpc_rich_presence_request_locked = false;
+	        }
+        }, 9500)
+
+        steamRichPresence.on('info', rp_listener);
+        steamRichPresence.request({steamid_request: steamids})
 	},
 
 	kill: function(reply) {

@@ -1,25 +1,25 @@
-import asyncio
 import datetime
 import json
 from collections import Counter
 
 import zerorpc
+from Cogs.Utils import db
+from Cogs.Utils import sorted_help
 from discord.ext import commands
 
-from Discord.cogs import dota2
-from Discord.cogs.utils import db
-
 initial_extensions = [
-    'cogs.meta',
-    'cogs.dota2',
-    'cogs.steam',
+    'Cogs.meta',
+    'Cogs.dota2',
+    'Cogs.steam',
+    'Cogs.music',
 ]
 
 description = """
 Hello! I am a bot written by John.
 """
 help_attrs = dict(hidden=True)
-bot = commands.Bot(command_prefix=['?', '!', '\u2757'], description=description, pm_help=None, help_attrs=help_attrs)
+bot = commands.Bot(command_prefix=['!'], description=description, pm_help=False, help_attrs=help_attrs,
+                   formatter=sorted_help.SortedHelpFormatter())
 
 
 zrpc = zerorpc.Client()
@@ -44,30 +44,19 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    if message.content.startswith('!test'):
-        counter = 0
-        tmp = await bot.send_message(message.channel, 'Calculating messages...')
-        async for log in bot.logs_from(message.channel, limit=100):
-            if log.author == message.author:
-                counter += 1
-
-        await bot.edit_message(tmp, 'You have {} messages.'.format(counter))
-    elif message.content.startswith('!sleep'):
-        await asyncio.sleep(5)
-        await bot.send_message(message.channel, 'Done sleeping')
-    else:
-        await bot.process_commands(message)
+    await bot.process_commands(message)
 
 
 def load_credentials():
-    with open('credentials.json') as f:
+    with open('Config/config.json') as f:
         return json.load(f)
 
 
 credentials = load_credentials()
 bot.client_id = credentials['client_id']
+bot.owner_id = credentials['owner_id']
 bot.steam_api_key = credentials['steam_api_key']
-bot.steam_info = db.Database('steam_info.json')
-bot.dota_ticker_settings = db.Database('dota_ticker_settings.json')
+bot.steam_info = db.Database('Config/steam_info.json')
+bot.dota_ticker_settings = db.Database('Config/dota_ticker_settings.json')
 
 bot.run(credentials['token'])

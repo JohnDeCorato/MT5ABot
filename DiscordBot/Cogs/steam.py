@@ -1,9 +1,6 @@
-import re
-
-import discord.utils
 from discord.ext import commands
 
-from .utils import formats, steamapi, zrpc
+from .Utils import steamapi, zrpc
 
 
 class Steam:
@@ -32,6 +29,13 @@ class Steam:
             else:
                 await self.bot.say("Invalid subcommand. Use '{0.prefix}help link_steam' to see a list of subcommands."
                                    .format(ctx))
+            return
+
+        # Check that the ZRPC server is up
+        try:
+            zrpc.hello()
+        except:
+            await self.bot.say("The ZRPC server is currently down. Tell @MashThat5A#6431")
             return
 
         author = ctx.message.author
@@ -84,6 +88,13 @@ class Steam:
 
     @link_steam.command(name='verify', pass_context=True, hidden=True)
     async def verify(self, ctx):
+        # Check that the ZRPC server is up
+        try:
+            zrpc.hello()
+        except:
+            await self.bot.say("The ZRPC server is currently down. Tell @MashThat5A#6431")
+            return
+
         author = ctx.message.author
         split_msg = ctx.message.content.split(' ')
 

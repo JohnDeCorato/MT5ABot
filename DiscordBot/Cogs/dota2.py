@@ -1,20 +1,20 @@
-import discord.utils
-from discord.ext import commands
-
-from .utils import checks, formats, steamapi, zrpc
-
-from lxml import html
-import requests
+import asyncio
+import datetime
 import json
 import time
-import asyncio
-import threading
+
+import discord.utils
+import requests
+from discord.ext import commands
+from lxml import html
+
+from .Utils import checks, db, steamapi, zrpc
+
 
 class Dota2:
     """Dota 2 related commands"""
 
     def __init__(self, bot):
-        global isThreadRunning
 
         self.bot = bot
         self.steam_api = steamapi.SteamAPI(bot.steam_api_key)
@@ -29,20 +29,18 @@ class Dota2:
         with open("Dota/regions.json", 'r') as f:
             self.regions = json.load(f)['regions']
 
+        self.notable_players = db.Database("Dota/notable_players.json")
+
         self.match_strings = []
-        loop = asyncio.get_event_loop()
-        loop.create_task(self.check_match_ticker())
+        #self.loop = asyncio.get_event_loop()
+        #self.loop.create_task(self.run_match_ticker())
 
-        self.lock = threading.Lock()
-
-        if not isThreadRunning:
-            thread = D2MatchTickerThread(self)
-            thread.start()
-            isThreadRunning = True
+        self.last_match_seq = {}
 
     @commands.command(hidden=True)
     @checks.is_owner()
     async def update_heroes(self):
+        """Updates the internal hero database"""
         heroes = self.steam_api.get_heroes()
 
         with open("Dota/heroes.json", 'w') as f:
@@ -53,10 +51,37 @@ class Dota2:
     @commands.command(hidden=True)
     @checks.is_owner()
     async def update_items(self):
+        """Updates the internal item database"""
         items = self.steam_api.get_game_items()
 
         with open("Dota/items.json", 'w') as f:
             json.dump(items, f, ensure_ascii=True, indent=4)
+
+    @commands.command(hidden=True)
+    @checks.is_owner()
+    async def update_dotabuff_verified_players(self):
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) '
+                   'Chrome/47.0.2526.111 Safari/537.36'}
+        url = 'http://dotabuff.com/players/verified'
+        response = requests.get(url, headers=headers)
+        tree = html.fromstring(response.content)
+
+        urls = tree.xpath('//a[contains(@href,"players")and @class = "link-type-player"]/@href')
+        names = tree.xpath('//a[contains(@href,"players")and @class = "link-type-player"]/text()')
+
+        for i in range(0, len(urls)):
+            dota_id = int(urls[i].split('/')[2])
+            name = names[i]
+
+            await self.notable_players.put(dota_id, name)
+
+        await self.bot.say("Notable player list updated with Dotabuff verified profiles.")
+
+    @commands.command(hidden=True)
+    @checks.is_owner()
+    async def add_notable_player(self, dota_id: int, *, name: str):
+        await self.notable_players.put(dota_id, name)
+        await self.bot.say("Notable player added.")
 
     @commands.command(pass_context=True)
     async def dotabuff(self, ctx, *, member: discord.Member=None):
@@ -83,11 +108,12 @@ class Dota2:
         for steam_id in steam_ids:
             for player in response['players']:
                 if player['steamid'] == steam_id:
-                    dota_id = int(steam_id) - steamapi.ID.STEAM_TO_DOTA_CONSTANT
+                    dota_id = steamapi.ID.steam_to_dota(steam_id)
                     msg += "{0} - <https://dotabuff.com/players/{1}>\n".format(player['personaname'], dota_id)
         await self.bot.say(msg)
 
     def get_latest_match(self, steam_id):
+        """Gets the latest match for a given Steam ID"""
         try:
             req = self.steam_api.get_match_history(account_id=steam_id, matches_requested=1)
             result = req['result']
@@ -103,6 +129,7 @@ class Dota2:
         return result['matches'][0]
 
     def get_latest_match_from_list(self, steam_ids):
+        """Gets simple match data for the latest game played from a list of IDs"""
         latest_match = {}
 
         for steam_id in steam_ids:
@@ -115,41 +142,49 @@ class Dota2:
         return latest_match
 
     def get_hero_name(self, i):
+        """Gets a hero name for a given ID"""
         for hero in self.heroes:
             if hero['id'] == i:
                 return hero['localized_name']
         return 'Unknown Hero'
 
     def get_item_name(self, i):
+        """Gets an item name for a given ID"""
         for item in self.items:
             if item['id'] == i:
                 return item['localized_name']
         return 'Unknown Item'
 
     def get_lobby_name(self, i):
+        """Gets a lobby name for a given ID"""
         for lobby in self.lobbies:
             if lobby['id'] == i:
                 return lobby['name']
         return 'Unknown Lobby Type'
 
     def get_mode_name(self, i):
+        """Gets a mode name for a given ID"""
         for mode in self.modes:
             if mode['id'] == i:
                 return mode['name']
         return 'Unknown Game Mode'
 
     def get_region_name(self, i):
+        """Gets a region name for a given ID"""
         for region in self.regions:
             if region['id'] == i:
                 return region['name']
         return 'Unknown Matchmaking Region'
 
     def get_game_length(self, duration):
+        """Parses the game duration into minutes/seconds"""
         minutes = int(duration / 60)
         seconds = int(duration % 60)
         return "{0}:{1}".format(minutes, str(seconds).zfill(2))
 
     def get_player_blurb(self, player):
+        """Gets a string for a player in a match if they are
+        registered with the bot."""
         dota_id = player['account_id']
 
         name = None
@@ -158,7 +193,7 @@ class Dota2:
                 steam_ids = self.bot.steam_info.get(member.id)
                 if steam_ids is not None:
                     for steam_id in steam_ids:
-                        if dota_id == int(steam_id) - steamapi.ID.STEAM_TO_DOTA_CONSTANT:
+                        if dota_id == steamapi.ID.steam_to_dota(steam_id):
                             name = member.name
 
         if name is None:
@@ -331,64 +366,72 @@ class Dota2:
         await self.bot.dota_ticker_settings.put(server.id, settings)
         await self.bot.say('The match ticker has been enabled on {0.mention}.'.format(channel))
 
-    def start_match_ticker(self):
-        """Automated Dota 2 match ticker"""
-
+    async def run_match_ticker(self):
         print('[Dota]: Match ticker initialized')
+        while not self.loop.is_closed():
+            # Print the last time the match ticker ran for debugging
+            ts = time.time()
+            st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+            print("[Dota]: Match ticker ran at {0}".format(st))
 
-        # Initialization
-        last_match = {}
-        for server in self.bot.servers:
-            last_match[server.id] = 0
+            # Make a copy of the server data
+            servers = self.bot.servers
+            # Check if any new servers got added
+            if not len(servers) == len(self.last_match_seq):
+                for server in servers:
+                    if server.id not in self.last_match_seq:
+                        self.last_match_seq[server.id] = 0
 
-        while True:
-            # Check if the match_strings have been cleared by the bot
-            if len(self.match_strings) == 0:
-                for server in self.bot.servers:
-                    # Check if the match ticker has been set up
-                    settings = self.bot.dota_ticker_settings.get(server.id)
-                    if settings is not None and settings['enabled']:
-                        channel = server.get_channel(settings['channel_id'])
+            # Start a task for each server with the ticker enabled
+            num_futures = 0
+            futures = []
+            channels = []
+            for server in servers:
+                settings = self.bot.dota_ticker_settings.get(server.id)
+                if settings is not None and settings['enabled']:
+                    # Start a task for the server
+                    num_futures += 1
+                    futures.append(self.loop.run_in_executor(None, self.check_server_for_new_matches, server))
+                    channels.append(server.get_channel(settings['channel_id']))
 
-                        new_matches = {}
-                        latest_match = 0
+            # Report the match data
+            for x in range(num_futures):
+                match_strings = await futures[x]
+                for match_string in match_strings:
+                    await self.bot.send_message(channels[x], match_string)
 
-                        # Get a list of unreported matches since last check
-                        for member in server.members:
-                            steam_ids = self.bot.steam_info.get(member.id)
-                            if steam_ids is not None:
-                                # Only one latest match per player
-                                match = self.get_latest_match_from_list(steam_ids)
-                                if 'match_id' in match and last_match[server.id] < match['match_seq_num']:
-                                    new_matches[match['match_id']] = match
-                                    latest_match = max(latest_match, match['match_seq_num'])
-
-                        if last_match[server.id] > 0:
-                            for x, match in new_matches.items():
-                                r = self.steam_api.get_match_details(match['match_id'])
-                                if 'result' in r:
-                                    match_string = "A game of Dota just ended. Match info: \n\n"
-                                    match_info = r['result']
-                                    match_string += self.parse_match(match_info)
-
-                                    # Put the string in the parsed list
-                                    self.lock.acquire()
-                                    self.match_strings.append((channel, match_string))
-                                    self.lock.release()
-
-                        # Update the latest reported match for the server.
-                        last_match[server.id] = max(last_match[server.id], latest_match)
-
-            time.sleep(60)
-
-    async def check_match_ticker(self):
-        while True:
             await asyncio.sleep(60)
-            self.lock.acquire()
-            for channel, match_string in self.match_strings:
-                await self.bot.send_message(channel, match_string)
-            self.match_strings.clear()
-            self.lock.release()
+
+    def check_server_for_new_matches(self, server):
+        new_matches = {}
+        latest_match = 0
+        match_strings = []
+
+        # Get a list of unreported matches since last check
+        for member in server.members:
+            steam_ids = self.bot.steam_info.get(member.id)
+            if steam_ids is not None:
+                # Only one latest match per player
+                match = self.get_latest_match_from_list(steam_ids)
+                if match is not None and self.last_match_seq[server.id] < match['match_seq_num']:
+                    new_matches[match['match_id']] = match
+                    latest_match = max(latest_match, match['match_seq_num'])
+
+        if self.last_match_seq[server.id] > 0:
+            for x, match in new_matches.items():
+                r = self.steam_api.get_match_details(match['match_id'])
+                if 'result' in r:
+                    match_string = "A game of Dota just ended. Match info: \n\n"
+                    match_info = r['result']
+                    match_string += self.parse_match(match_info)
+
+                    # Put the string in the parsed list
+                    match_strings.append(match_string)
+
+        # Update the latest reported match for the server.
+        self.last_match_seq[server.id] = max(self.last_match_seq[server.id], latest_match)
+
+        return match_strings
 
     @commands.command(pass_context=True)
     async def mmr(self, ctx, *, member: discord.Member=None):
@@ -397,7 +440,14 @@ class Dota2:
         This only returns MMRs if they are visible on the Dota profile card.
         If no member is specified then the info returned is for the user
         that invoked the command."""
-        print(zrpc.gc_status())
+
+        # Check that the ZRPC server is up
+        try:
+            zrpc.hello()
+        except:
+            await self.bot.say("The ZRPC server is currently down.")
+            return
+
         if member is None:
             member = ctx.message.author
 
@@ -420,7 +470,7 @@ class Dota2:
         for steam_id in steam_ids:
             for player in response['players']:
                 if player['steamid'] == steam_id:
-                    dota_id = int(steam_id) - steamapi.ID.STEAM_TO_DOTA_CONSTANT
+                    dota_id = steamapi.ID.steam_to_dota(steam_id)
                     try:
                         smmr, pmmr = zrpc.get_mmr_for_dotaid(str(dota_id))
                     except:
@@ -437,13 +487,4 @@ class Dota2:
 def setup(bot):
     bot.add_cog(Dota2(bot))
 
-isThreadRunning = False
 
-
-class D2MatchTickerThread(threading.Thread):
-    def __init__(self, d2):
-        threading.Thread.__init__(self)
-        self.d2 = d2
-
-    def run(self):
-        self.d2.start_match_ticker()
