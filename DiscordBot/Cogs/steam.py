@@ -35,7 +35,7 @@ class Steam:
         try:
             zrpc.hello()
         except:
-            await self.bot.say("The ZRPC server is currently down. Tell @MashThat5A#6431")
+            await self.bot.say("The ZRPC server is currently down. Tell MashThat5A.")
             return
 
         author = ctx.message.author
@@ -66,8 +66,9 @@ class Steam:
             return
 
         if not steamid:
-            await self.bot.whisper('Unable to determine Steam ID from {0}. Please try a different identifier.'
-                                   .format(steamthing))
+            await self.bot.whisper('Unable to determine Steam ID from {0}. Please try again with a different identifier.'
+                                   .format(steamthing)
+            return
 
         if zrpc.add_pending_discord_link(str(steamid), str(author.id)):
             await self.bot.whisper(
@@ -126,7 +127,8 @@ class Steam:
                 "Verification unsuccessful. Please make sure the "
                 "code you gave is the same one given by MT5ABot "
                 "on Steam. If you have not received a code from MT5ABot, "
-                "please send 'link discord your_discord_id' to MT5ABot over Steam chat.")
+                "please send 'link discord {0.id}' to MT5ABot "
+                "over Steam chat.".format(author))
 
 
 def setup(bot):
