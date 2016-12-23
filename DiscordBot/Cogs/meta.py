@@ -26,35 +26,50 @@ class Meta:
         """ Displays full source code."""
         await self.bot.say('https://github.com./JohnDeCorato/MT5ABot')
 
+    @commands.command(name='quit', hidden=True)
+    @checks.is_owner()
+    async def _quit(self):
+        """Quits the bot."""
+        await self.bot.logout()
+
     @commands.group(pass_context=True, no_pm=True, invoke_without_command=True)
     async def info(self, ctx, *, member: discord.Member=None):
         """Shows info about a member.
 
-        This cannot be used in private messages. If no member is
-        specified then the info returned is for the user that invoked
-        the command.
+        This cannot be used in private messages. If you don't specify
+        a member then the info returned will be yours.
         """
+        channel = ctx.message.channel
         if member is None:
             member = ctx.message.author
 
+        e = discord.Embed()
         roles = [role.name.replace('@', '@\u200b') for role in member.roles]
+        shared = sum(1 for m in self.bot.get_all_members() if m.id == member.id)
+        voice = member.voice_channel
+        if voice is not None:
+            other_people = len(voice.voice_members) - 1
+            voice_fmt = '{} with {} others' if other_people else '{} by themselves'
+            voice = voice_fmt.format(voice.name, other_people)
+        else:
+            voice = 'Not connected.'
 
-        entries = [
-            ('Name', member.name),
-            ('Tag', member.discriminator),
-            ('ID', member.id),
-            ('Joined', member.joined_at),
-            ('Created', member.created_at),
-            ('Roles', ', '.join(roles)),
-            ('Avatar', member.avatar_url),
-        ]
+        e.set_author(name=str(member), icon_url=member.avatar_url or member.default_avatar_url)
+        e.set_footer(text='Member since').timestamp = member.joined_at
+        e.add_field(name='ID', value=member.id)
+        e.add_field(name='Servers', value='%s shared' % shared)
+        e.add_field(name='Voice', value=voice)
+        e.add_field(name='Created', value=member.created_at)
+        e.add_field(name='Roles', value=', '.join(roles))
+        e.colour = member.colour
 
-        await formats.entry_to_code(self.bot, entries)
+        if member.avatar:
+            e.set_image(url=member.avatar_url)
+
+        await self.bot.say(embed=e)
 
     @info.command(name='server', pass_context=True, no_pm=True)
     async def server_info(self, ctx):
-        """Displays server information."""
-
         server = ctx.message.server
         roles = [role.name.replace('@', '@\u200b') for role in server.roles]
 
@@ -62,37 +77,67 @@ class Meta:
         secret_member.id = '0'
         secret_member.roles = [server.default_role]
 
-        secret_text = 0
+        # figure out what channels are 'secret'
+        secret_channels = 0
         secret_voice = 0
         text_channels = 0
-
         for channel in server.channels:
             perms = channel.permissions_for(secret_member)
             is_text = channel.type == discord.ChannelType.text
             text_channels += is_text
             if is_text and not perms.read_messages:
-                secret_text += 1
+                secret_channels += 1
             elif not is_text and (not perms.connect or not perms.speak):
                 secret_voice += 1
 
+        regular_channels = len(server.channels) - secret_channels
         voice_channels = len(server.channels) - text_channels
         member_by_status = Counter(str(m.status) for m in server.members)
-        member_fmt = '{0} ({1[online]} online, {1[idle]} idle, {1[offline]} offline)'
-        channels_fmt = '{} Text ({} secret) / {} Voice ({} locked)'
-        channels = channels_fmt.format(text_channels, secret_text, voice_channels, secret_voice)
 
-        entries = [
-            ('Name', server.name),
-            ('ID', server.id),
-            ('Channels', channels),
-            ('Created', server.created_at),
-            ('Members', member_fmt.format(len(server.members), member_by_status)),
-            ('Owner', server.owner),
-            ('Icon', server.icon_url),
-            ('Roles', ', '.join(roles)),
-        ]
+        e = discord.Embed()
+        e.title = 'Info for ' + server.name
+        e.add_field(name='ID', value=server.id)
+        e.add_field(name='Owner', value=server.owner)
+        if server.icon:
+            e.set_thumbnail(url=server.icon_url)
 
-        await formats.indented_entry_to_code(self.bot, entries)
+        if server.splash:
+            e.set_image(url=server.splash_url)
+
+        e.add_field(name='Partnered?', value='Yes' if server.features else 'No')
+
+        fmt = 'Text %s (%s secret)\nVoice %s (%s locked)'
+        e.add_field(name='Channels', value=fmt % (text_channels, secret_channels, voice_channels, secret_voice))
+
+        fmt = 'Total: {0}\nOnline: {1[online]}' \
+              ', Offline: {1[offline]}' \
+              '\nDnD: {1[dnd]}' \
+              ', Idle: {1[idle]}'
+
+        e.add_field(name='Members', value=fmt.format(server.member_count, member_by_status))
+        e.add_field(name='Roles', value=', '.join(roles) if len(roles) < 10 else '%s roles' % len(roles))
+        e.set_footer(text='Created').timestamp = server.created_at
+        await self.bot.say(embed=e)
+
+    @info.command(name='role', pass_context=True, no_pm=True)
+    async def role_info(self, ctx, *, role: discord.Role):
+
+        e = discord.Embed()
+        e.title = 'Info for ' + role.name
+        e.add_field(name='ID', value=role.id)
+        e.add_field(name='Color', value='#{:0>6x}'.format(role.colour.value))
+        properties = []
+        if role.hoist:
+            properties.append('Hoisted')
+        if role.managed:
+            properties.append('Managed')
+        if role.mentionable:
+            properties.append('Mentionable')
+        if properties != '':
+            e.add_field(name='Properties', value=', '.join(properties))
+        e.add_field(name='Permissions Raw Value', value=role.permissions.value)
+        e.colour = role.colour
+        await self.bot.say(embed=e)
 
     async def say_permissions(self, member, channel):
         permissions = channel.permissions_for(member)
@@ -157,24 +202,6 @@ class Meta:
             await self.bot.leave_server(server)
         except:
             await self.bot.say('Could not leave.')
-
-    def get_bot_uptime(self):
-        now = datetime.datetime.utcnow()
-        delta = now - self.bot.uptime
-        hours, remainder = divmod(int(delta.total_seconds()), 3600)
-        minutes, seconds = divmod(remainder, 60)
-        days, hours = divmod(hours, 24)
-        if days:
-            fmt = '{d} days, {h} hours, {m} minutes, and {s} seconds'
-        else:
-            fmt = '{h} hours, {m} minutes, and {s} seconds'
-
-        return fmt.format(d=days, h=hours, m=minutes, s=seconds)
-
-    @commands.command()
-    async def uptime(self):
-        """Tells you how long the bot has been up for."""
-        await self.bot.say('Uptime: **{}**'.format(self.get_bot_uptime()))
 
 def setup(bot):
     bot.add_cog(Meta(bot))
