@@ -15,14 +15,14 @@ initial_extensions = [
 ]
 
 description = """
-Hello! I am a bot written by John.
+Hello! I am a bot written by John (MashThat5A).
 """
 
 discord_logger = logging.getLogger('discord')
 discord_logger.setLevel(logging.CRITICAL)
 log = logging.getLogger()
 log.setLevel(logging.INFO)
-handler = logging.FileHandler(filename='eglbot.log', encoding='utf-8', mode='w')
+handler = logging.FileHandler(filename='mt5abot.log', encoding='utf-8', mode='w')
 log.addHandler(handler)
 
 help_attrs = dict(hidden=True)

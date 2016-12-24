@@ -24,7 +24,7 @@ class Meta:
     @commands.command()
     async def source(self):
         """ Displays full source code."""
-        await self.bot.say('https://github.com./JohnDeCorato/MT5ABot')
+        await self.bot.say('https://github.com/JohnDeCorato/MT5ABot')
 
     @commands.command(name='quit', hidden=True)
     @checks.is_owner()
@@ -133,7 +133,7 @@ class Meta:
             properties.append('Managed')
         if role.mentionable:
             properties.append('Mentionable')
-        if properties != '':
+        if properties != []:
             e.add_field(name='Properties', value=', '.join(properties))
         e.add_field(name='Permissions Raw Value', value=role.permissions.value)
         e.colour = role.colour

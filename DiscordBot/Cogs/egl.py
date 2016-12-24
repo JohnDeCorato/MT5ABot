@@ -1,4 +1,5 @@
 from discord.ext import commands
+from discord.ext.commands.errors import BadArgument
 from.Utils import checks, db
 import asyncio
 import aiohttp
@@ -19,15 +20,12 @@ def admin_or_bot_owner():
 	def predicate(ctx):
 		server = ctx.message.server
 		if server is None:
-			print("No server found")
 			return False
 
 		role = discord.utils.find(lambda r: r.id == EGL_ADMIN_ROLE, server.roles)
 		if role is None:
-			print("No role found.")
 			return False
 
-		print(ctx.message.author.top_role.name)
 		return ctx.message.author.top_role == role
 	return commands.check(predicate) or checks.is_owner()
 
@@ -124,7 +122,7 @@ class EGL:
 		try:
 			await self.bot.say(survey['intro'])
 		except KeyError:
-			await self.bot.say("No intro set. Use `{0.prefix}survey set_intro` to set the survey intro.")
+			await self.bot.say("No intro set. Use `{0.prefix}survey set_intro` to set the survey intro.".format(ctx))
 
 		try:
 			for question in survey['questions']:
@@ -146,25 +144,76 @@ class EGL:
 		survey['intro'] = text
 		await self.bot.say("New intro set.")
 
-	@survey.group()
+	@survey.group(pass_context=True)
 	@is_egl_server()
 	@admin_or_bot_owner()
-	async def add_question(self):
+	async def add_question(self, ctx):
 		"""Command group for adding questions"""
-		await self.bot.say("Use `{0.prefix}help survey add_question` to see the types of questions that can be added.")
+		if ctx.invoked_subcommand != None:
+			return
+
+		await self.bot.say("Use `{0.prefix}help survey add_question` to see the types of questions that can be added.".format(ctx))
+
+	def add_question_to_survey(question, question_list, position):
+		pass
 
 	@add_question.command(pass_context=True)
 	@is_egl_server()
 	@admin_or_bot_owner()
-	async def yes_no(self, ctx, question_number:int = -1, *, question:str):
-		"""Adds a yes/no question to the survey."""
-		pass
+	async def yes_no(self, ctx, question:str, *, question_number:int = -1):
+		"""Adds a yes/no question to the survey.
+
+		The question should be surrounded in quotation marks.
+		Question number is optional. If not passed the question will be added
+		to the end of the survey.
+		"""
+		author = ctx.message.author
+		channel = ctx.message.channel
+
+		survey = self.egl_db.get('survey', {})
+		try:
+			questions = survey["questions"]
+		except KeyError:
+			questions = []
+
+		await self.bot.say("What is the role that this question should grant? Type 'cancel' to quit.")
+
+		for i in range(5):
+			def check(m):
+				return m.author.id == author.id and \
+				       m.channel.id == channel.id
+
+			reply = await self.bot.wait_for_message(check=check, timeout=300.0)
+			if reply is None:
+				return await self.bot.send_message(channel, 'You took too long. Goodbye.')
+			if reply.content == 'cancel':
+				return await self.bot.send_message(channel, 'Cancelling. Goodbye.')
+
+			try:
+				# Attempt to get the role for the response
+				role = commands.RoleConverter(ctx, reply.content).convert()
+				# Set up the question object
+				q = {}
+				q['text'] = question
+				q['type'] = yes_no
+				q['role_granted'] = role.id
+				self.add_question_to_survey(q, questions, question_number)
+				return await self.bot.send_message(channel, "Question added to the survey.")
+			except BadArgument:
+				# Role conversion filaed
+				await self.bot.send_message(channel, "Role not found, please try again. Tries remaining: {}".format(5-i))
 
 	@add_question.command()
 	@is_egl_server()
 	@admin_or_bot_owner()
-	async def multiple_choice(self, ctx, question_number:int = -1, *, question:str):
-		"""Adds a multiple choice question to the survey."""
+	async def multiple_choice(self, ctx, question:str, *, question_number:int = -1):
+		"""Adds a multiple choice question to the survey.
+		
+		The question should be surrounded in quotation marks.
+		Additional steps are used for this question for possible answers.
+		Question number is optional. If not passed the question will be added
+		to the end of the survey.
+		"""
 		pass
 
 	@survey.command(pass_context=True)
