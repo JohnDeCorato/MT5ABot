@@ -8,6 +8,7 @@ import datetime
 import difflib
 import re
 from collections import Counter
+import sys
 
 EGL_SERVER_ID = "243069526592323584"
 EGL_ADMIN_ROLE = "243071169647869953"
@@ -42,6 +43,9 @@ def mod_or_bot_owner():
 		return ctx.message.author.top_role >= role
 	return commands.check(predicate) or checks.is_owner()
 
+def get_role(id, server):
+	return discord.utils.find(lambda r: r.id == id, server.roles)
+
 
 class EGL:
 	"""EGL Server exclusive things"""
@@ -66,20 +70,35 @@ class EGL:
 	async def hello_egl(self):
 		await self.bot.say("Hello EGL Server.")
 
-	async def ask_yes_no(self, question, member):
-		await self.bot.send_message(member, question['text'])
+	async def ask_yes_no(self, question, member, destination):
+		await self.bot.send_message(destination, question + ' (y/n)')
+		valid = {'yes':True,'y':True,'ye':True,'no':False,'n':False, }
 		def check(m):
-			valid = {'yes':True,'y':True,'ye':True,'no':False,'n':False, }
-			return m.author.id == author.id and \
-				   m.channel.id == channel.id and \
+			return m.author.id == member.id and \
+				   (m.channel.is_private if m.destination == member else m.channel == destination) and \
 				   (m.content.lower() in valid)
-		reply = await self.bot.wiat_for_message(check=check, timeout=300.0)
+		reply = await self.bot.wait_for_message(check=check, timeout=300.0)
 		if reply is None:
-			return await self.bot.send_message(member, "You took too long. Goodbye.")
+			await self.bot.send_message(destination, "You took too long. Goodbye.")
+			return None
 		return valid[reply.content.lower()]
 
-	async def ask_multiple_choice(self, question, member):
-		await self.bot.send_message(member, question[text])
+	async def ask_multiple_choice(self, question, member, destination):
+		text = question['text'] + '\n'
+		if question['multi_select']:
+			text += 'Please select all that apply with space separated numbers. Example: `1 3`.\n'
+		else:
+			text += 'Please select one with the number of the response.\n'
+		responses = question['responses']
+		for i in range(len(responses)):
+			text += '{0}) {1}\n'.format(i, responses[i]['text'])
+		await self.bot.send_message(destination, question[text])
+		asyncio.sleep(10)
+		def check(m):
+			return m.author.id == member.id and \
+				   (m.channel.is_private if m.destination == member else m.channel == destination)
+		
+
 
 	async def give_survey(self, member):
 		survey = self.egl_db.get('survey', {})
@@ -94,9 +113,10 @@ class EGL:
 		try:
 			for question in survey['questions']:
 				if question['type'] == 'yes_no':
-					await self.ask_yes_no(question, member)
+					if await self.ask_yes_no(question['text'], member, member):
+						await self.bot.send_message(member, question['role_granted'])
 				elif question['type'] == 'multiple_choice':
-					await self.ask_multiple_choice(question, member)
+					await self.ask_multiple_choice(question, member, member)
 		except KeyError:
 			pass
 
@@ -124,10 +144,18 @@ class EGL:
 		except KeyError:
 			await self.bot.say("No intro set. Use `{0.prefix}survey set_intro` to set the survey intro.".format(ctx))
 
+		
 		try:
+			i = 1
 			for question in survey['questions']:
+				asyncio.sleep(10)
+				message = '**Question {0}**: '.format(i)
 				if question['type'] == 'yes_no':
-					await self.bot.say(question['text'])
+					message += question['text'] + '\n'
+					message += "**Type**: Yes/No\n"
+					message += "**Role Given**: " + get_role(question['role_granted'], ctx.message.server).name
+
+				await self.bot.say(message)
 		except KeyError:
 			pass
 
@@ -144,7 +172,7 @@ class EGL:
 		survey['intro'] = text
 		await self.bot.say("New intro set.")
 
-	@survey.group(pass_context=True)
+	@survey.group( pass_context=True)
 	@is_egl_server()
 	@admin_or_bot_owner()
 	async def add_question(self, ctx):
@@ -154,13 +182,23 @@ class EGL:
 
 		await self.bot.say("Use `{0.prefix}help survey add_question` to see the types of questions that can be added.".format(ctx))
 
-	def add_question_to_survey(question, question_list, position):
-		pass
+	async def add_question_to_survey(self, question, survey, position):
+		try:
+			questions = survey['questions']
+		except KeyError:
+			questions = []
+
+		if position > len(questions):
+			position = sys.maxsize
+
+		questions.insert(position - 1, question)
+		survey['questions'] = questions
+		await self.egl_db.put('survey', survey)
 
 	@add_question.command(pass_context=True)
 	@is_egl_server()
 	@admin_or_bot_owner()
-	async def yes_no(self, ctx, question:str, *, question_number:int = -1):
+	async def yes_no(self, ctx, question:str, *, question_number:int = sys.maxsize):
 		"""Adds a yes/no question to the survey.
 
 		The question should be surrounded in quotation marks.
@@ -171,10 +209,6 @@ class EGL:
 		channel = ctx.message.channel
 
 		survey = self.egl_db.get('survey', {})
-		try:
-			questions = survey["questions"]
-		except KeyError:
-			questions = []
 
 		await self.bot.say("What is the role that this question should grant? Type 'cancel' to quit.")
 
@@ -195,13 +229,15 @@ class EGL:
 				# Set up the question object
 				q = {}
 				q['text'] = question
-				q['type'] = yes_no
+				q['type'] = 'yes_no'
 				q['role_granted'] = role.id
-				self.add_question_to_survey(q, questions, question_number)
+				await self.add_question_to_survey(q, survey, question_number)
 				return await self.bot.send_message(channel, "Question added to the survey.")
 			except BadArgument:
-				# Role conversion filaed
+				# Role conversion failed
 				await self.bot.send_message(channel, "Role not found, please try again. Tries remaining: {}".format(5-i))
+
+		return await self.bot.send_message(channel, "Failed too many times. Please try again or ping John(MashThat5A) for help.")
 
 	@add_question.command()
 	@is_egl_server()
@@ -214,9 +250,79 @@ class EGL:
 		Question number is optional. If not passed the question will be added
 		to the end of the survey.
 		"""
-		pass
+		author = ctx.message.author
+		channel = ctx.message.channel
 
-	@survey.command(pass_context=True)
+		survey = self.egl_db.get('survey', {})
+		responses = []
+
+		await self.bot.say('Lets begin the process of setting up the responses for this question. Send `cancel` at any point to quit.')
+		while True:
+			asyncio.sleep(10) #eventual consistency lel
+			await self.bot.say('Please input response #{0}. {1}'.format(len(responses)) + 1, '' if len(responses) < 2 else 'Send `done` to finish.')
+
+			def check(m):
+				return m.author.id == author.id and \
+				       m.channel.id == channel.id and \
+				       m.content.startswith('"') or m.content.startswith('c') or m.content.startswith('d')
+			reply = await self.bot.wait_for_message(check=check, timeout=300)
+
+			if reply is None:
+				return await self.bot.send_message(channel, 'You took too long. Goodbye.')
+			if reply.content == 'cancel':
+				return await self.bot.send_message(channel, 'Cancelling. Goodbye.')
+			if reply.content == 'done':
+				if len(responses) >= 2:
+					break
+				else:
+					await self.bot.send_message(channel, 'You must have at least two responses in a multiple choice question.')
+			else:
+				response = {}
+				response['text'] = reply.content.strip('"')
+				await self.bot.say("What is the role that this response should grant? Type 'cancel' to quit.")
+
+				failed = True
+
+				for i in range(5):
+					def check(m):
+						return m.author.id == author.id and \
+						       m.channel.id == channel.id
+
+					reply = await self.bot.wait_for_message(check=check, timeout=300.0)
+					if reply is None:
+						return await self.bot.send_message(channel, 'You took too long. Goodbye.')
+					if reply.content == 'cancel':
+						return await self.bot.send_message(channel, 'Cancelling. Goodbye.')
+
+					try:
+						# Attempt to get the role for the response
+						role = commands.RoleConverter(ctx, reply.content).convert()
+						response['id'] = role.id
+						responses.append(response)
+						failed = False
+						break
+					except BadArgument:
+						# Role conversion failed
+						await self.bot.send_message(channel, "Role not found, please try again. Tries remaining: {}".format(5-i))
+
+				if failed:
+					return await self.bot.send_message(channel, "Failed too many times. Please try again or ping John(MashThat5A) for help.")
+
+		multi_select = await self.ask_yes_no('Can users select multiple responses? (You cannot cancel at this point)', author, channel)
+
+		# set up the question to be stored
+		q = {}
+		q['text'] = question
+		q['responses'] = responses
+		q['multi_select'] = multi_select
+		q['type'] = 'multiple_choice'
+
+		return await self.bot.send_message(channel, 'Question added to the survey.')
+
+
+
+
+	@survey.command(pass_context=True, hidden=True)
 	@is_egl_server()
 	@admin_or_bot_owner()
 	async def remove_question(self, ctx, question_number:int):

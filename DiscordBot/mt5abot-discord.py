@@ -7,9 +7,11 @@ import logging
 import traceback
 import sys
 from collections import Counter
+import os
 
 initial_extensions = [
     'Cogs.admin',
+    'Cogs.egl',
     'Cogs.meta',
     'Cogs.stats'
 ]
@@ -70,6 +72,7 @@ def load_credentials():
 
 
 if __name__ == '__main__':
+    os.system('cls')
     credentials = load_credentials()
     debug = any('debug' in arg.lower() for arg in sys.argv)
     if debug:
