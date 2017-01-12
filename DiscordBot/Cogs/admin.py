@@ -1,9 +1,10 @@
 from discord.ext import commands
 from .Utils import checks
-import discord
 import inspect
 
 # to expose to the eval command
+import discord
+import os
 import datetime
 from collections import Counter
 

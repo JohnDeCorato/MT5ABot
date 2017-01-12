@@ -67,7 +67,7 @@ class Steam:
 
         if not steamid:
             await self.bot.whisper('Unable to determine Steam ID from {0}. Please try again with a different identifier.'
-                                   .format(steamthing)
+                                   .format(steamthing))
             return
 
         if zrpc.add_pending_discord_link(str(steamid), str(author.id)):

@@ -13,7 +13,8 @@ initial_extensions = [
     'Cogs.admin',
     'Cogs.egl',
     'Cogs.meta',
-    'Cogs.stats'
+    'Cogs.stats',
+    'Cogs.starboard'
 ]
 
 description = """
@@ -83,8 +84,12 @@ if __name__ == '__main__':
         bot.debug_mode = False
         token = credentials['token']
 
+    # IDs and keys for things
     bot.client_id = credentials['client_id']
     bot.owner_id = credentials['owner_id']
+    bot.steam_api_key = credentials['steam_api_key']
+    bot.dropbox_token = credentials['dropbox_token']
+
     for extension in initial_extensions:
         try:
             bot.load_extension(extension)

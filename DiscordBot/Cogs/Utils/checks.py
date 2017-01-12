@@ -22,7 +22,7 @@ def check_permissions(ctx, **perms):
 
 
 def role_or_permissions(ctx, check, **perms):
-    if check_permissions(ctx, perms):
+    if check_permissions(ctx, perms=perms):
         return True
 
     ch = ctx.message.channel
