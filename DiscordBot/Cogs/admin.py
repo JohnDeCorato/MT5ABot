@@ -9,6 +9,7 @@ import datetime
 import subprocess
 from collections import Counter
 
+
 class Admin:
 	"""Admin-only commands that make the bot dynamic."""
 
